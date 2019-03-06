@@ -1,5 +1,5 @@
 
-<font size=6>使用TensorFlow训练Boosted Trees model</font>
+<font size=12>使用TensorFlow训练Boosted Trees model</font>
 
 这篇tutorial适用tf.estimator完整的训练一个Gradient Boosting Decision Tree(GBDT)模型。
 Boosted Tree是非常流行且有用的分类和回归模型，它使用集成技术将多棵树的预测结果整合成一个结果值。
