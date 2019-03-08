@@ -1,14 +1,17 @@
 
-在前一篇《boosted trees》中完整的训练了一个Boosted分类树，这篇文章主要是在上篇的基础上讲解以下两个内容：
-- 怎么从局部和全局的角度理解Boosted Tree 模型的可解释性
-- 从直觉上了解Boosted Tree 是怎么进行数据训练的
+前一篇《boosted trees》完整训练了一个Boosted分类树，这篇文章主要是在上篇的基础上讲解以下三个内容：
+- 理解各个特征对单个样本预测结果的贡献
+- 各个特征对模型的重要性
+- 从直觉上了解Boosted Tree 是怎么fit数据的
 
 # 模型的可解释性
-局部可解释性（Local interpretability）是指理解模型对一个样本的预测结果的可解释性，全局可解释性（ Global  interpretability）指模型的决策方式时可解释的。
+模型的可解释性分为两个方面：
+- 局部可解释性（Local interpretability）是指单个样本的预测结果的可解释性，
+- 全局可解释性（ Global  interpretability）指模型的决策方式是可解释的。
 
 对于局部可解释性，学习创建和可视化每个样本的贡献(contributions),这和特征的重要性不同，样本的重要性值称作定向特征贡献（directional feature contributions，DFCs）
 
-全局的可解释性可以获取和可视化gain-based feature importances、permutation feature importances 和aggregated DFCs。
+全局的可解释性可以学习和可视化gain-based feature importances、permutation feature importances 和aggregated DFCs。
 
 PS:教程在最开始的时候有一句 pip install -q tf-nightly # Requires tf 1.13，因为对tf-nightly不是很了解，我自己的机子上安装了tensorflow-1.13.1,所以没有管它，但是最后没有跑出想要的结果：对类别型特征进行了one-hot之后，该特征应当仍然被当做一个特征去分析其重要性的，但是tensorflow-1.13.1是将one-hot之后的特征看做了多个独立特征去分析了，这偏离了我原来使用tf去训练BD Tree的宗旨，最终检查多遍代码之后，我将可能的原因归结为tf-nightly,但是网上tf-nightly的资料并不是很多，我现在的理解是tf-nightly是tensorflow的开发版本，里面有一些tensorflow没有的功能，但是还不是很稳定。在安装的时候，也走了一些弯路，需要把tensorflow 先卸载干净之后在安装tf-nightly。正好昨天（3.6），tf-nightly发布了新的版本1.14.1-dev20190306，我也算尝鲜了，哈哈。
 
@@ -190,6 +193,9 @@ pd.Series(results).to_frame()
 
 
 # local interpretability
+接下来将输出directional feature contributions来解释单个预测值，该方法可以参考文章[Interpreting random forests](http://blog.datadive.net/interpreting-random-forests/)和论文[Interpreting random forest classification models
+using a feature contribution method](https://arxiv.org/pdf/1312.1121.pdf)。
+scikit-learn中的Random Forest模型中也存在该该方法，在treeinterpreter中。
 
 
 
@@ -206,26 +212,26 @@ pred_dicts = list(est.experimental_predict_with_explanations(eval_input_fn))
 
 
 ```python
-pred_dicts[1]
+pred_dicts[0]
 ```
 
 
 
 
-    {'logits': array([-0.49212736], dtype=float32),
-     'logistic': array([0.37939256], dtype=float32),
-     'probabilities': array([0.62060744, 0.37939253], dtype=float32),
+    {'logits': array([-2.1667228], dtype=float32),
+     'logistic': array([0.10277882], dtype=float32),
+     'probabilities': array([0.8972212 , 0.10277886], dtype=float32),
      'class_ids': array([0], dtype=int64),
      'classes': array([b'0'], dtype=object),
      'bias': 0.3437500217477164,
-     'dfc': OrderedDict([('sex', -0.1362820723090153),
-                  ('fare', 0.08740152782898775),
-                  ('deck', 0.07717052414217734),
-                  ('class', 0.061006841092034136),
-                  ('embark_town', -0.054895610810640705),
-                  ('age', -0.018217264776154762),
-                  ('parch', 0.012589504296639242),
-                  ('n_siblings_spouses', 0.006869073255146851),
+     'dfc': OrderedDict([('age', -0.07895472816824273),
+                  ('sex', -0.06325637071238067),
+                  ('embark_town', -0.04549111733967605),
+                  ('fare', -0.022285333116146),
+                  ('deck', -0.015886283774878704),
+                  ('class', -0.009440178458887838),
+                  ('parch', -0.003368982923539765),
+                  ('n_siblings_spouses', -0.002288176456518673),
                   ('alone', 0.0)])}
 
 
@@ -376,6 +382,8 @@ df_dfc.describe().T
 
 
 
+DFCs有一个很好的特性，贡献之和+bias= 预测值
+
 
 ```python
 # Sum of DFCs + bias == probabality.
@@ -385,7 +393,7 @@ np.testing.assert_almost_equal(dfc_prob.values,
                                probs.values)
 ```
 
-## 可视化DFCs
+## 可视化单个样本的DFCs
 
 
 ```python
@@ -402,8 +410,12 @@ ax.set_xlabel('Contribution to predicted probability');
 ```
 
 
-![png](output_17_0.png)
+![png](output_18_0.png)
 
+
+量级更大的贡献值对应的特征越能影响模型的预测结果。
+负贡献表明该样本的这个特征值降低的模型的预测值，
+正贡献则增加了模型的预测值。
 
 ## 优化可视化
 
@@ -456,10 +468,10 @@ ax.set_xlabel('Contribution to predicted probability', size=14);
 ```
 
 
-![png](output_20_0.png)
+![png](output_22_0.png)
 
 
-## 单个DFS VS. ALL
+## 单个样本的DFCs VS. 各个特征的DFCs分布
 
 
 ```python
@@ -520,10 +532,16 @@ plt.title('Feature contributions for example {}\n pred: {:1.2f}; label: {}'.form
 ```
 
 
-![png](output_23_0.png)
+![png](output_25_0.png)
 
 
 # Global feature importances
+
+Gain-based feature importances是通过计算分裂一个特征而获得的增益来，
+permutation feature importances是在验证集上单独shuffle一个特征并衡量该特征shuffle后对模型性能的影响。
+
+总的来说，permutation feature importances要优于Gain-based feature importances，虽然这两个方法在某些情况下可能都不可信。
+
 ## 基于增益的特征重要性
 
 
@@ -542,7 +560,7 @@ ax.grid(False, axis='y')
 ```
 
 
-![png](output_25_0.png)
+![png](output_27_0.png)
 
 
 ## 基于DFCs绝对值的平均值的特征重要性
@@ -561,7 +579,7 @@ ax.grid(False, axis='y')
 ```
 
 
-![png](output_27_0.png)
+![png](output_29_0.png)
 
 
 
@@ -576,7 +594,7 @@ ax.set_xlim(0, 100);
 ```
 
 
-![png](output_28_0.png)
+![png](output_30_0.png)
 
 
 ## Permutation feature importance（序列特征）
@@ -618,7 +636,7 @@ ax.set_title('Permutation feature importance');
 ```
 
 
-![png](output_30_0.png)
+![png](output_32_0.png)
 
 
 # 可视化模型的训练过程
@@ -690,7 +708,7 @@ plt.title('Contour on training data');
     
 
 
-![png](output_38_1.png)
+![png](output_40_1.png)
 
 
 ## 线性模型baseline
@@ -727,7 +745,7 @@ plot_contour(xi, yi, predict(est))
 ```
 
 
-![png](output_45_0.png)
+![png](output_47_0.png)
 
 
 训练结果并不好，接下来用GBDT来预测
@@ -753,35 +771,35 @@ for n in N_TREES:
 ```
 
 
-![png](output_49_0.png)
+![png](output_51_0.png)
 
 
 
-![png](output_49_1.png)
+![png](output_51_1.png)
 
 
 
-![png](output_49_2.png)
+![png](output_51_2.png)
 
 
 
-![png](output_49_3.png)
+![png](output_51_3.png)
 
 
 
-![png](output_49_4.png)
+![png](output_51_4.png)
 
 
 
-![png](output_49_5.png)
+![png](output_51_5.png)
 
 
 
-![png](output_49_6.png)
+![png](output_51_6.png)
 
 
 
-![png](output_49_7.png)
+![png](output_51_7.png)
 
 
 当决策树增加时，模型的预测更接近数据的真实方程。
